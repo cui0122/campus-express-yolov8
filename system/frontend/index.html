@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<title>校园快递包裹分类识别</title>
+<style>
+  body { font-family: -apple-system, sans-serif; max-width: 720px; margin: 40px auto; padding: 0 16px; }
+  #canvas-wrap { position: relative; display: inline-block; margin-top: 16px; }
+  canvas { max-width: 100%; border: 1px solid #ddd; }
+  #result-list { margin-top: 16px; font-size: 14px; }
+  .row { padding: 6px 0; border-bottom: 1px solid #eee; }
+  button { padding: 8px 16px; cursor: pointer; }
+</style>
+</head>
+<body>
+  <h2>校园快递包裹分类识别</h2>
+  <p>API 地址：<input id="api-url" value="http://127.0.0.1:8000/detect" style="width:280px" /></p>
+  <input type="file" id="file-input" accept="image/*" />
+  <button onclick="runDetect()">开始识别</button>
+
+  <div id="canvas-wrap"><canvas id="canvas"></canvas></div>
+  <div id="result-list"></div>
+
+<script>
+async function runDetect() {
+  const fileInput = document.getElementById('file-input');
+  const apiUrl = document.getElementById('api-url').value;
+  if (!fileInput.files.length) { alert('请先选择图片'); return; }
+  const file = fileInput.files[0];
+
+  const formData = new FormData();
+  formData.append('file', file);
+
+  const resp = await fetch(apiUrl, { method: 'POST', body: formData });
+  if (!resp.ok) { alert('请求失败: ' + resp.status); return; }
+  const data = await resp.json();
+
+  const img = new Image();
+  img.onload = () => {
+    const canvas = document.getElementById('canvas');
+    canvas.width = img.width;
+    canvas.height = img.height;
+    const ctx = canvas.getContext('2d');
+    ctx.drawImage(img, 0, 0);
+
+    ctx.lineWidth = 3;
+    ctx.font = '18px sans-serif';
+    data.detections.forEach(det => {
+      const [x1, y1, x2, y2] = det.box;
+      ctx.strokeStyle = '#ff3b30';
+      ctx.strokeRect(x1, y1, x2 - x1, y2 - y1);
+      ctx.fillStyle = '#ff3b30';
+      ctx.fillText(`${det.cls} ${(det.conf * 100).toFixed(1)}%`, x1, Math.max(16, y1 - 6));
+    });
+
+    const list = document.getElementById('result-list');
+    list.innerHTML = `<b>共检测到 ${data.count} 个包裹</b>` +
+      data.detections.map(d => `<div class="row">${d.cls} — 置信度 ${(d.conf*100).toFixed(1)}%</div>`).join('');
+  };
+  img.src = URL.createObjectURL(file);
+}
+</script>
+</body>
+</html>

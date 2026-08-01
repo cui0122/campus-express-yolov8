@@ -1,0 +1,27 @@
+# 阶段2：以阶段1权重为起点，在校园自采数据（细分类别）上做小学习率微调
+# 注意：model 字段会被 train.py 的 --weights 参数覆盖为 stage1 产出的 best.pt
+
+model: training/runs/stage1/weights/best.pt
+data: data/dataset/data.yaml
+epochs: 60
+imgsz: 640
+batch: 16
+patience: 15
+optimizer: SGD
+lr0: 0.001         # 明显小于阶段1，避免破坏已学到的通用特征
+lrf: 0.01
+momentum: 0.937
+weight_decay: 0.0005
+warmup_epochs: 2
+mosaic: 0.5         # 微调阶段减弱强增强，更贴近真实校园场景分布
+mixup: 0.0
+hsv_h: 0.01
+hsv_s: 0.5
+hsv_v: 0.3
+degrees: 0.0
+translate: 0.1
+scale: 0.4
+fliplr: 0.5
+freeze: 10          # 冻结前10层 backbone，减少小数据集下的过拟合风险（可按显存/效果调整或去掉）
+project: training/runs
+name: stage2

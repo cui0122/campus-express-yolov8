@@ -1,0 +1,7 @@
+data/public_raw/
+data/public_yolo/
+data/merged/
+data/dataset/
+training/runs/
+*.pt
+__pycache__/
