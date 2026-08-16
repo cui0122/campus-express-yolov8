@@ -71,6 +71,7 @@ def remap_one_dataset(dataset_dir, class_map, final_classes, out_dir, prefix):
 
     final_id = {c: i for i, c in enumerate(final_classes)}
     kept, skipped = 0, 0
+    unmapped_counter = Counter() 
 
     for lbl_file in os.listdir(lbl_dir):
         if not lbl_file.endswith(".txt"):
@@ -89,6 +90,7 @@ def remap_one_dataset(dataset_dir, class_map, final_classes, out_dir, prefix):
                 old_name = src_classes[old_id]
                 mapped = class_map.get(old_name.lower(), class_map.get(old_name))
                 if mapped is None or mapped not in final_id:
+                    unmapped_counter[old_name] += 1   # 新增
                     continue
                 new_id = final_id[mapped]
                 new_lines.append(f"{new_id} {' '.join(parts[1:])}")
@@ -114,6 +116,9 @@ def remap_one_dataset(dataset_dir, class_map, final_classes, out_dir, prefix):
         kept += 1
 
     print(f"[{prefix}] 保留 {kept} 张，跳过 {skipped} 张")
+    print(f"[{prefix}] 未映射/丢弃的原始类别统计:")
+    for name, cnt in unmapped_counter.most_common(20):
+        print(f"    {name!r}: {cnt} 次")
 
 
 def main():
