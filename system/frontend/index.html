@@ -1,64 +1,1478 @@
 <!DOCTYPE html>
 <html lang="zh-CN">
 <head>
-<meta charset="UTF-8" />
-<title>校园快递包裹分类识别</title>
-<style>
-  body { font-family: -apple-system, sans-serif; max-width: 720px; margin: 40px auto; padding: 0 16px; }
-  #canvas-wrap { position: relative; display: inline-block; margin-top: 16px; }
-  canvas { max-width: 100%; border: 1px solid #ddd; }
-  #result-list { margin-top: 16px; font-size: 14px; }
-  .row { padding: 6px 0; border-bottom: 1px solid #eee; }
-  button { padding: 8px 16px; cursor: pointer; }
-</style>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>校园快递包裹分类识别 · 横向版</title>
+    <style>
+        /* ========== 全局重置 ========== */
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        html,
+        body {
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'PingFang SC', 'Microsoft YaHei', sans-serif;
+            background: #0b0e1a;
+            color: #e8edf5;
+        }
+
+        /* ========== 粒子背景 Canvas ========== */
+        #particle-canvas {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            z-index: 0;
+            pointer-events: none;
+            /* 让鼠标事件穿透 */;
+        }
+
+        /* ========== 主容器：横向铺满 ========== */
+        .app-container {
+            position: relative;
+            z-index: 1;
+            display: flex;
+            width: 100vw;
+            height: 100vh;
+            padding: 20px;
+            gap: 20px;
+            overflow: hidden;
+        }
+
+        /* ========== 左栏：图片区 ========== */
+        .left-panel {
+            flex: 0 0 58%;
+            min-width: 0;
+            display: flex;
+            flex-direction: column;
+            gap: 14px;
+            background: rgba(18, 24, 44, 0.55);
+            backdrop-filter: blur(18px);
+            -webkit-backdrop-filter: blur(18px);
+            border-radius: 24px;
+            padding: 20px 22px 22px;
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.6);
+            overflow: hidden;
+        }
+
+        .left-panel .panel-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            flex-shrink: 0;
+        }
+
+        .left-panel .panel-header h2 {
+            font-size: 20px;
+            font-weight: 700;
+            letter-spacing: -0.2px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            color: #fff;
+        }
+
+        .left-panel .panel-header h2 span {
+            background: linear-gradient(135deg, #6c8cff, #a78bfa);
+            padding: 2px 12px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 500;
+            color: #fff;
+        }
+
+        .left-panel .panel-header .badge-time {
+            font-size: 13px;
+            color: rgba(255, 255, 255, 0.5);
+            background: rgba(255, 255, 255, 0.06);
+            padding: 4px 14px;
+            border-radius: 30px;
+            border: 1px solid rgba(255, 255, 255, 0.06);
+        }
+
+        /* 上传区域 - 紧凑 */
+        .upload-zone {
+            flex-shrink: 0;
+            border: 2px dashed rgba(255, 255, 255, 0.12);
+            border-radius: 16px;
+            padding: 12px 18px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            background: rgba(255, 255, 255, 0.03);
+            position: relative;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 14px;
+            flex-wrap: wrap;
+        }
+
+        .upload-zone:hover,
+        .upload-zone.dragover {
+            border-color: rgba(108, 140, 255, 0.5);
+            background: rgba(108, 140, 255, 0.08);
+        }
+
+        .upload-zone .icon {
+            font-size: 22px;
+            opacity: 0.7;
+        }
+
+        .upload-zone .title {
+            font-size: 14px;
+            font-weight: 500;
+            color: rgba(255, 255, 255, 0.7);
+        }
+
+        .upload-zone .sub {
+            font-size: 12px;
+            color: rgba(255, 255, 255, 0.35);
+        }
+
+        .upload-zone input[type="file"] {
+            position: absolute;
+            inset: 0;
+            opacity: 0;
+            cursor: pointer;
+        }
+
+        .upload-zone .file-name {
+            font-size: 13px;
+            color: #8aafff;
+            font-weight: 500;
+            min-width: 60px;
+        }
+
+        /* 画布容器 */
+        .canvas-wrapper {
+            flex: 1;
+            min-height: 0;
+            border-radius: 16px;
+            overflow: hidden;
+            background: rgba(0, 0, 0, 0.35);
+            border: 1px solid rgba(255, 255, 255, 0.06);
+            position: relative;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .canvas-wrapper canvas {
+            display: block;
+            max-width: 100%;
+            max-height: 100%;
+            width: auto;
+            height: auto;
+            background: transparent;
+            object-fit: contain;
+        }
+
+        .canvas-placeholder {
+            position: absolute;
+            inset: 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            color: rgba(255, 255, 255, 0.2);
+            font-size: 14px;
+            pointer-events: none;
+        }
+
+        .canvas-placeholder span {
+            font-size: 44px;
+            margin-bottom: 6px;
+            opacity: 0.5;
+        }
+
+        /* 图片信息 */
+        .image-info-bar {
+            flex-shrink: 0;
+            display: flex;
+            justify-content: space-between;
+            font-size: 12px;
+            color: rgba(255, 255, 255, 0.3);
+            padding: 0 4px;
+        }
+
+        /* ========== 右栏：控制 & 结果 ========== */
+        .right-panel {
+            flex: 1;
+            min-width: 280px;
+            display: flex;
+            flex-direction: column;
+            gap: 14px;
+            background: rgba(18, 24, 44, 0.55);
+            backdrop-filter: blur(18px);
+            -webkit-backdrop-filter: blur(18px);
+            border-radius: 24px;
+            padding: 20px 22px 22px;
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.6);
+            overflow: hidden;
+        }
+
+        .right-panel .panel-title {
+            font-size: 14px;
+            font-weight: 600;
+            color: rgba(255, 255, 255, 0.5);
+            letter-spacing: 0.5px;
+            text-transform: uppercase;
+            flex-shrink: 0;
+        }
+
+        /* API 行 */
+        .api-row {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            flex-shrink: 0;
+            background: rgba(255, 255, 255, 0.04);
+            padding: 6px 14px 6px 16px;
+            border-radius: 12px;
+            border: 1px solid rgba(255, 255, 255, 0.06);
+        }
+
+        .api-row label {
+            font-size: 12px;
+            font-weight: 500;
+            color: rgba(255, 255, 255, 0.5);
+            white-space: nowrap;
+        }
+
+        .api-row input {
+            flex: 1;
+            min-width: 100px;
+            border: none;
+            background: transparent;
+            padding: 4px 0;
+            font-size: 12px;
+            color: #c8d8ff;
+            outline: none;
+            font-family: inherit;
+        }
+
+        .api-row .api-status {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            font-size: 11px;
+            color: rgba(255, 255, 255, 0.3);
+            white-space: nowrap;
+        }
+
+        .api-row .api-status .dot {
+            width: 6px;
+            height: 6px;
+            border-radius: 50%;
+            background: #4ade80;
+            display: inline-block;
+        }
+
+        /* 操作按钮 */
+        .action-bar {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            flex-shrink: 0;
+        }
+
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 7px 16px;
+            border-radius: 10px;
+            font-weight: 600;
+            font-size: 13px;
+            border: none;
+            cursor: pointer;
+            transition: all 0.25s ease;
+            font-family: inherit;
+            background: rgba(255, 255, 255, 0.06);
+            color: rgba(255, 255, 255, 0.7);
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, #4f6ef7, #7c5cfc);
+            color: #fff;
+            box-shadow: 0 4px 20px rgba(79, 110, 247, 0.3);
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 6px 28px rgba(79, 110, 247, 0.45);
+        }
+
+        .btn-primary:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            transform: none !important;
+            box-shadow: none !important;
+        }
+
+        .btn-outline {
+            background: rgba(255, 255, 255, 0.04);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+        }
+
+        .btn-outline:hover {
+            background: rgba(255, 255, 255, 0.1);
+            border-color: rgba(255, 255, 255, 0.2);
+        }
+
+        .btn-success {
+            background: rgba(52, 199, 89, 0.2);
+            color: #4ade80;
+            border: 1px solid rgba(52, 199, 89, 0.2);
+        }
+
+        .btn-success:hover {
+            background: rgba(52, 199, 89, 0.3);
+        }
+
+        .btn-danger-outline {
+            background: rgba(255, 59, 48, 0.1);
+            color: #ff6b6b;
+            border: 1px solid rgba(255, 59, 48, 0.15);
+        }
+
+        .btn-danger-outline:hover {
+            background: rgba(255, 59, 48, 0.2);
+        }
+
+        /* 统计栏 */
+        .stats-bar {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px 18px;
+            padding: 10px 14px;
+            background: rgba(255, 255, 255, 0.03);
+            border-radius: 12px;
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            flex-shrink: 0;
+            align-items: center;
+        }
+
+        .stats-item {
+            display: flex;
+            align-items: baseline;
+            gap: 4px;
+            font-size: 13px;
+            color: rgba(255, 255, 255, 0.5);
+        }
+
+        .stats-item .num {
+            font-weight: 700;
+            font-size: 17px;
+            color: #fff;
+        }
+
+        .stats-item .num.primary {
+            color: #8aafff;
+        }
+
+        .stats-divider {
+            width: 1px;
+            height: 20px;
+            background: rgba(255, 255, 255, 0.08);
+        }
+
+        /* 标签云 */
+        .tag-cloud {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+            flex-shrink: 0;
+            min-height: 28px;
+        }
+
+        .tag {
+            padding: 2px 12px;
+            border-radius: 16px;
+            font-size: 11px;
+            font-weight: 500;
+            background: rgba(255, 255, 255, 0.06);
+            color: rgba(255, 255, 255, 0.6);
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+        }
+
+        .tag .count {
+            background: rgba(255, 255, 255, 0.08);
+            border-radius: 8px;
+            padding: 0 6px;
+            font-size: 10px;
+        }
+
+        .tag.tag-primary {
+            background: rgba(79, 110, 247, 0.2);
+            color: #8aafff;
+        }
+        .tag.tag-success {
+            background: rgba(52, 199, 89, 0.15);
+            color: #4ade80;
+        }
+        .tag.tag-warning {
+            background: rgba(255, 149, 0, 0.15);
+            color: #ffb347;
+        }
+        .tag.tag-danger {
+            background: rgba(255, 59, 48, 0.15);
+            color: #ff6b6b;
+        }
+
+        /* 结果列表 & 历史记录 - 共用滚动容器 */
+        .scroll-area {
+            flex: 1;
+            min-height: 0;
+            overflow-y: auto;
+            border-radius: 12px;
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            background: rgba(0, 0, 0, 0.2);
+        }
+
+        .scroll-area::-webkit-scrollbar {
+            width: 4px;
+        }
+        .scroll-area::-webkit-scrollbar-track {
+            background: transparent;
+        }
+        .scroll-area::-webkit-scrollbar-thumb {
+            background: rgba(255, 255, 255, 0.15);
+            border-radius: 4px;
+        }
+
+        .result-list .row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 8px 14px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+            font-size: 13px;
+            transition: background 0.15s;
+        }
+
+        .result-list .row:hover {
+            background: rgba(255, 255, 255, 0.03);
+        }
+
+        .row .left {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .row .dot-indicator {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            flex-shrink: 0;
+        }
+        .row .cls-name {
+            font-weight: 500;
+            color: #e8edf5;
+        }
+        .row .conf {
+            font-size: 12px;
+            padding: 1px 10px;
+            border-radius: 10px;
+            font-weight: 500;
+            background: rgba(255, 255, 255, 0.05);
+            color: rgba(255, 255, 255, 0.4);
+        }
+        .row .conf.high {
+            color: #4ade80;
+            background: rgba(52, 199, 89, 0.12);
+        }
+        .row .conf.medium {
+            color: #ffb347;
+            background: rgba(255, 149, 0, 0.12);
+        }
+        .row .conf.low {
+            color: #ff6b6b;
+            background: rgba(255, 59, 48, 0.12);
+        }
+
+        .empty-state {
+            padding: 24px 12px;
+            text-align: center;
+            color: rgba(255, 255, 255, 0.2);
+            font-size: 13px;
+        }
+        .empty-state span {
+            display: block;
+            font-size: 26px;
+            margin-bottom: 4px;
+            opacity: 0.5;
+        }
+
+        /* 历史记录 */
+        .history-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            flex-shrink: 0;
+            padding: 2px 0;
+        }
+
+        .history-header h4 {
+            font-size: 13px;
+            font-weight: 600;
+            color: rgba(255, 255, 255, 0.4);
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .history-header h4 span {
+            font-weight: 400;
+            color: rgba(255, 255, 255, 0.2);
+        }
+
+        .history-header .clear-btn {
+            font-size: 11px;
+            color: rgba(255, 255, 255, 0.2);
+            background: none;
+            border: none;
+            cursor: pointer;
+            padding: 2px 8px;
+            border-radius: 6px;
+            transition: 0.2s;
+        }
+
+        .history-header .clear-btn:hover {
+            color: #ff6b6b;
+            background: rgba(255, 59, 48, 0.1);
+        }
+
+        .history-list .history-item {
+            padding: 8px 14px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+            cursor: pointer;
+            transition: background 0.15s;
+        }
+
+        .history-list .history-item:hover {
+            background: rgba(255, 255, 255, 0.03);
+        }
+
+        .history-item .h-top {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            gap: 4px 12px;
+        }
+
+        .history-item .h-time {
+            font-size: 12px;
+            color: rgba(255, 255, 255, 0.4);
+        }
+
+        .history-item .h-file {
+            font-size: 12px;
+            color: rgba(255, 255, 255, 0.3);
+            max-width: 100px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        .history-item .h-count {
+            font-size: 12px;
+            font-weight: 600;
+            color: #8aafff;
+            margin-left: auto;
+        }
+
+        .history-item .h-tags {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 4px;
+            margin-top: 3px;
+        }
+
+        .history-item .h-tags .mini-tag {
+            font-size: 10px;
+            background: rgba(255, 255, 255, 0.05);
+            padding: 0 8px;
+            border-radius: 8px;
+            color: rgba(255, 255, 255, 0.4);
+        }
+
+        .history-item .h-detail {
+            margin-top: 6px;
+            padding: 8px 10px;
+            background: rgba(0, 0, 0, 0.2);
+            border-radius: 8px;
+            font-size: 12px;
+            display: none;
+        }
+
+        .history-item .h-detail.open {
+            display: block;
+        }
+
+        .history-item .h-detail .detail-row {
+            display: flex;
+            justify-content: space-between;
+            padding: 3px 0;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.03);
+            color: rgba(255, 255, 255, 0.5);
+        }
+
+        .history-item .h-detail .detail-row:last-child {
+            border-bottom: none;
+        }
+
+        .history-empty {
+            padding: 20px 12px;
+            text-align: center;
+            color: rgba(255, 255, 255, 0.15);
+            font-size: 13px;
+        }
+        .history-empty span {
+            display: block;
+            font-size: 24px;
+            margin-bottom: 4px;
+            opacity: 0.4;
+        }
+
+        /* 分割线 */
+        .divider-light {
+            border: none;
+            border-top: 1px solid rgba(255, 255, 255, 0.05);
+            margin: 2px 0;
+            flex-shrink: 0;
+        }
+
+        /* ========== Toast ========== */
+        .toast {
+            position: fixed;
+            bottom: 40px;
+            left: 50%;
+            transform: translateX(-50%) translateY(20px);
+            background: rgba(0, 0, 0, 0.8);
+            backdrop-filter: blur(12px);
+            color: #fff;
+            padding: 10px 28px;
+            border-radius: 14px;
+            font-size: 14px;
+            font-weight: 500;
+            box-shadow: 0 8px 40px rgba(0, 0, 0, 0.5);
+            opacity: 0;
+            pointer-events: none;
+            transition: all 0.35s ease;
+            z-index: 999;
+            border: 1px solid rgba(255, 255, 255, 0.06);
+        }
+
+        .toast.show {
+            opacity: 1;
+            transform: translateX(-50%) translateY(0);
+        }
+
+        /* ========== Spinner ========== */
+        .spinner {
+            display: inline-block;
+            width: 16px;
+            height: 16px;
+            border: 2px solid rgba(255, 255, 255, 0.2);
+            border-top-color: #fff;
+            border-radius: 50%;
+            animation: spin 0.7s linear infinite;
+            vertical-align: middle;
+        }
+
+        @keyframes spin {
+            to {
+                transform: rotate(360deg);
+            }
+        }
+
+        /* ========== 响应式 ========== */
+        @media (max-width: 900px) {
+            .app-container {
+                flex-direction: column;
+                padding: 12px;
+                gap: 12px;
+                height: 100vh;
+                overflow-y: auto;
+            }
+
+            .left-panel {
+                flex: 0 0 auto;
+                min-height: 40vh;
+                max-height: 55vh;
+            }
+
+            .right-panel {
+                flex: 1;
+                min-height: 40vh;
+                max-height: 55vh;
+            }
+
+            .left-panel .panel-header h2 {
+                font-size: 17px;
+            }
+            .upload-zone {
+                padding: 8px 14px;
+            }
+            .upload-zone .icon {
+                font-size: 18px;
+            }
+        }
+
+        @media (max-width: 500px) {
+            .app-container {
+                padding: 8px;
+                gap: 8px;
+            }
+            .left-panel,
+            .right-panel {
+                padding: 12px 14px;
+                border-radius: 16px;
+            }
+            .left-panel {
+                min-height: 30vh;
+                max-height: 45vh;
+            }
+            .right-panel {
+                min-height: 45vh;
+                max-height: 60vh;
+            }
+            .action-bar .btn {
+                padding: 5px 12px;
+                font-size: 12px;
+            }
+            .stats-bar {
+                padding: 6px 10px;
+                gap: 4px 10px;
+            }
+            .stats-item {
+                font-size: 12px;
+            }
+            .stats-item .num {
+                font-size: 15px;
+            }
+            .api-row {
+                padding: 4px 10px;
+            }
+            .api-row input {
+                font-size: 11px;
+                min-width: 60px;
+            }
+        }
+
+        /* ========== 滚动条全局 ========== */
+        ::-webkit-scrollbar {
+            width: 4px;
+            height: 4px;
+        }
+        ::-webkit-scrollbar-track {
+            background: transparent;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 4px;
+        }
+    </style>
 </head>
 <body>
-  <h2>校园快递包裹分类识别</h2>
-  <p>API 地址：<input id="api-url" value="http://127.0.0.1:8000/detect" style="width:280px" /></p>
-  <input type="file" id="file-input" accept="image/*" />
-  <button onclick="runDetect()">开始识别</button>
 
-  <div id="canvas-wrap"><canvas id="canvas"></canvas></div>
-  <div id="result-list"></div>
+    <!-- ===== 粒子背景 Canvas ===== -->
+    <canvas id="particle-canvas"></canvas>
 
-<script>
-async function runDetect() {
-  const fileInput = document.getElementById('file-input');
-  const apiUrl = document.getElementById('api-url').value;
-  if (!fileInput.files.length) { alert('请先选择图片'); return; }
-  const file = fileInput.files[0];
+    <!-- ===== Toast ===== -->
+    <div id="toast" class="toast"></div>
 
-  const formData = new FormData();
-  formData.append('file', file);
+    <!-- ===== 主容器 ===== -->
+    <div class="app-container">
 
-  const resp = await fetch(apiUrl, { method: 'POST', body: formData });
-  if (!resp.ok) { alert('请求失败: ' + resp.status); return; }
-  const data = await resp.json();
+        <!-- ====== 左栏 ====== -->
+        <div class="left-panel">
+            <div class="panel-header">
+                <h2>
+                    📦 包裹识别
+                    <span>YOLO</span>
+                </h2>
+                <span class="badge-time" id="clockDisplay">--:--:--</span>
+            </div>
 
-  const img = new Image();
-  img.onload = () => {
-    const canvas = document.getElementById('canvas');
-    canvas.width = img.width;
-    canvas.height = img.height;
-    const ctx = canvas.getContext('2d');
-    ctx.drawImage(img, 0, 0);
+            <!-- 上传区域 -->
+            <div class="upload-zone" id="dropZone">
+                <span class="icon">📤</span>
+                <span class="title">拖拽或点击上传</span>
+                <span class="sub">JPG / PNG / WebP</span>
+                <input type="file" id="file-input" accept="image/*" />
+                <span class="file-name" id="fileName"></span>
+            </div>
 
-    ctx.lineWidth = 3;
-    ctx.font = '18px sans-serif';
-    data.detections.forEach(det => {
-      const [x1, y1, x2, y2] = det.box;
-      ctx.strokeStyle = '#ff3b30';
-      ctx.strokeRect(x1, y1, x2 - x1, y2 - y1);
-      ctx.fillStyle = '#ff3b30';
-      ctx.fillText(`${det.cls} ${(det.conf * 100).toFixed(1)}%`, x1, Math.max(16, y1 - 6));
-    });
+            <!-- 画布 -->
+            <div class="canvas-wrapper" id="canvasWrapper">
+                <canvas id="canvas"></canvas>
+                <div class="canvas-placeholder" id="placeholder">
+                    <span>🖼️</span>
+                    等待上传图片…
+                </div>
+            </div>
 
-    const list = document.getElementById('result-list');
-    list.innerHTML = `<b>共检测到 ${data.count} 个包裹</b>` +
-      data.detections.map(d => `<div class="row">${d.cls} — 置信度 ${(d.conf*100).toFixed(1)}%</div>`).join('');
-  };
-  img.src = URL.createObjectURL(file);
-}
-</script>
+            <!-- 图片信息 -->
+            <div class="image-info-bar">
+                <span id="imageInfo">未加载图片</span>
+                <span id="imageSizeInfo"></span>
+            </div>
+        </div>
+
+        <!-- ====== 右栏 ====== -->
+        <div class="right-panel">
+            <div class="panel-title">⚙️ 控制台</div>
+
+            <!-- API -->
+            <div class="api-row">
+                <label>🔗 API</label>
+                <input id="api-url" value="http://127.0.0.1:8000/detect" spellcheck="false" />
+                <div class="api-status">
+                    <span class="dot"></span>
+                    <span id="api-label">就绪</span>
+                </div>
+            </div>
+
+            <!-- 操作按钮 -->
+            <div class="action-bar">
+                <button class="btn btn-primary" id="detectBtn" onclick="runDetect()">
+                    <span id="btnLabel">🚀 识别</span>
+                </button>
+                <button class="btn btn-outline" onclick="clearAll()">🗑️ 清空</button>
+                <button class="btn btn-success" onclick="downloadResult()">💾 截图</button>
+            </div>
+
+            <!-- 统计 -->
+            <div class="stats-bar" id="statsBar" style="display:none;">
+                <div class="stats-item">
+                    📦 包裹 <span class="num primary" id="totalCount">0</span>
+                </div>
+                <div class="stats-divider"></div>
+                <div class="stats-item">
+                    🏷️ 类别 <span class="num" id="classCount">0</span>
+                </div>
+                <div class="stats-divider"></div>
+                <div class="stats-item" id="topClassWrap">
+                    ⭐ 最多 <span id="topClassLabel">—</span>
+                </div>
+            </div>
+
+            <!-- 标签云 -->
+            <div class="tag-cloud" id="tagCloud"></div>
+
+            <!-- 结果列表 -->
+            <div class="scroll-area" id="resultScroll">
+                <div class="result-list" id="resultList">
+                    <div class="empty-state">
+                        <span>🔍</span>
+                        暂无检测结果
+                    </div>
+                </div>
+            </div>
+
+            <hr class="divider-light" />
+
+            <!-- 历史记录 -->
+            <div class="history-header">
+                <h4>📋 历史 <span id="historyCount">(0)</span></h4>
+                <button class="clear-btn" onclick="clearHistory()">清空</button>
+            </div>
+            <div class="scroll-area" style="flex:0 0 120px; min-height:60px;">
+                <div class="history-list" id="historyList">
+                    <div class="history-empty">
+                        <span>📭</span>
+                        暂无历史记录
+                    </div>
+                </div>
+            </div>
+
+        </div>
+    </div>
+
+    <script>
+        // ============================================================
+        //  粒子系统
+        // ============================================================
+        (function initParticles() {
+            const canvas = document.getElementById('particle-canvas');
+            const ctx = canvas.getContext('2d');
+            let w, h;
+            let particles = [];
+            const COUNT = 160;
+            const colors = ['#ffffff', '#a8c8ff', '#d4bfff', '#ffd8a8', '#b8e6ff'];
+
+            function resize() {
+                w = canvas.width = window.innerWidth;
+                h = canvas.height = window.innerHeight;
+            }
+            window.addEventListener('resize', resize);
+            resize();
+
+            class Particle {
+                constructor() {
+                    this.reset();
+                }
+                reset() {
+                    this.x = Math.random() * w;
+                    this.y = Math.random() * h;
+                    this.size = 1.5 + Math.random() * 4.5;
+                    this.vx = (Math.random() - 0.5) * 0.25;
+                    this.vy = (Math.random() - 0.5) * 0.25;
+                    this.color = colors[Math.floor(Math.random() * colors.length)];
+                    this.baseOpacity = 0.25 + Math.random() * 0.55;
+                    this.phase = Math.random() * Math.PI * 2;
+                    this.speed = 0.3 + Math.random() * 0.5;
+                }
+                update() {
+                    this.x += this.vx * this.speed;
+                    this.y += this.vy * this.speed;
+                    this.phase += 0.008 + Math.random() * 0.004;
+
+                    // 边界反弹 + 随机重置
+                    if (this.x < -20 || this.x > w + 20 || this.y < -20 || this.y > h + 20) {
+                        this.reset();
+                        this.x = Math.random() * w;
+                        this.y = Math.random() * h;
+                    }
+
+                    // 轻微游走
+                    this.vx += (Math.random() - 0.5) * 0.008;
+                    this.vy += (Math.random() - 0.5) * 0.008;
+                    const maxV = 0.3;
+                    this.vx = Math.max(-maxV, Math.min(maxV, this.vx));
+                    this.vy = Math.max(-maxV, Math.min(maxV, this.vy));
+                }
+                draw() {
+                    const opacity = this.baseOpacity * (0.6 + 0.4 * Math.sin(this.phase));
+                    const glow = this.size * 2.5;
+                    const gradient = ctx.createRadialGradient(this.x, this.y, 0, this.x, this.y, glow);
+                    gradient.addColorStop(0, this.color + Math.floor(opacity * 180).toString(16).padStart(2, '0'));
+                    gradient.addColorStop(1, this.color + '00');
+                    ctx.shadowColor = this.color;
+                    ctx.shadowBlur = 12;
+                    ctx.beginPath();
+                    ctx.arc(this.x, this.y, this.size * 0.6, 0, Math.PI * 2);
+                    ctx.fillStyle = this.color + Math.floor(opacity * 200).toString(16).padStart(2, '0');
+                    ctx.fill();
+                    ctx.shadowBlur = 0;
+                    // 光晕
+                    ctx.beginPath();
+                    ctx.arc(this.x, this.y, glow * 0.7, 0, Math.PI * 2);
+                    ctx.fillStyle = gradient;
+                    ctx.fill();
+                }
+            }
+
+            for (let i = 0; i < COUNT; i++) {
+                particles.push(new Particle());
+            }
+
+            function animate() {
+                ctx.clearRect(0, 0, w, h);
+                // 绘制微弱星云背景
+                const grad = ctx.createRadialGradient(w * 0.5, h * 0.5, 0, w * 0.5, h * 0.5, Math.max(w, h) * 0.8);
+                grad.addColorStop(0, 'rgba(30, 40, 80, 0.15)');
+                grad.addColorStop(0.5, 'rgba(20, 15, 50, 0.10)');
+                grad.addColorStop(1, 'rgba(0,0,0,0)');
+                ctx.fillStyle = grad;
+                ctx.fillRect(0, 0, w, h);
+
+                particles.forEach(p => {
+                    p.update();
+                    p.draw();
+                });
+                requestAnimationFrame(animate);
+            }
+            animate();
+
+            // 窗口变化时重置粒子位置
+            window.addEventListener('resize', () => {
+                particles.forEach(p => {
+                    p.x = Math.random() * w;
+                    p.y = Math.random() * h;
+                });
+            });
+        })();
+
+        // ============================================================
+        //  主应用逻辑
+        // ============================================================
+        (function main() {
+            // DOM 引用
+            const fileInput = document.getElementById('file-input');
+            const dropZone = document.getElementById('dropZone');
+            const fileName = document.getElementById('fileName');
+            const canvas = document.getElementById('canvas');
+            const ctx = canvas.getContext('2d');
+            const placeholder = document.getElementById('placeholder');
+            const resultList = document.getElementById('resultList');
+            const statsBar = document.getElementById('statsBar');
+            const totalCount = document.getElementById('totalCount');
+            const classCount = document.getElementById('classCount');
+            const topClassLabel = document.getElementById('topClassLabel');
+            const tagCloud = document.getElementById('tagCloud');
+            const imageInfo = document.getElementById('imageInfo');
+            const imageSizeInfo = document.getElementById('imageSizeInfo');
+            const detectBtn = document.getElementById('detectBtn');
+            const btnLabel = document.getElementById('btnLabel');
+            const toastEl = document.getElementById('toast');
+            const clockDisplay = document.getElementById('clockDisplay');
+            const historyList = document.getElementById('historyList');
+            const historyCount = document.getElementById('historyCount');
+            const canvasWrapper = document.getElementById('canvasWrapper');
+
+            let currentFile = null;
+            let currentImageUrl = null;
+            let lastResult = null;
+            let historyData = [];
+            const STORAGE_KEY = 'detectHistory';
+
+            // ===== 时钟 =====
+            function updateClock() {
+                const now = new Date();
+                const h = String(now.getHours()).padStart(2, '0');
+                const m = String(now.getMinutes()).padStart(2, '0');
+                const s = String(now.getSeconds()).padStart(2, '0');
+                clockDisplay.textContent = `${h}:${m}:${s}`;
+            }
+            updateClock();
+            setInterval(updateClock, 1000);
+
+            // ===== Toast =====
+            function showToast(msg, duration = 2500) {
+                toastEl.textContent = msg;
+                toastEl.classList.add('show');
+                clearTimeout(toastEl._hide);
+                toastEl._hide = setTimeout(() => toastEl.classList.remove('show'), duration);
+            }
+
+            function setLoading(loading) {
+                if (loading) {
+                    detectBtn.disabled = true;
+                    btnLabel.innerHTML = '<span class="spinner"></span> 识别中…';
+                } else {
+                    detectBtn.disabled = false;
+                    btnLabel.textContent = '🚀 识别';
+                }
+            }
+
+            function getConfidenceClass(conf) {
+                if (conf >= 0.75) return 'high';
+                if (conf >= 0.5) return 'medium';
+                return 'low';
+            }
+
+            function getCategoryColor(category) {
+                const colors = {
+                    '快递盒': '#4f6ef7',
+                    '文件袋': '#34c759',
+                    '塑料袋': '#ff9500',
+                    '纸箱': '#ff3b30',
+                    '信封': '#af52de',
+                    '其他': '#8e98b3'
+                };
+                return colors[category] || '#8e98b3';
+            }
+
+            // ===== 历史记录 =====
+            function loadHistory() {
+                try {
+                    const raw = localStorage.getItem(STORAGE_KEY);
+                    historyData = raw ? JSON.parse(raw) : [];
+                    if (!Array.isArray(historyData)) historyData = [];
+                } catch (_) { historyData = []; }
+                renderHistory();
+            }
+
+            function saveHistory() {
+                try {
+                    localStorage.setItem(STORAGE_KEY, JSON.stringify(historyData));
+                } catch (_) { /* ignore */ }
+                renderHistory();
+            }
+
+            function addHistoryEntry(fileName, detections) {
+                const now = new Date();
+                const timeStr = now.toLocaleString('zh-CN', { hour12: false });
+                const classes = {};
+                detections.forEach(d => {
+                    const cls = d.cls || '未知';
+                    classes[cls] = (classes[cls] || 0) + 1;
+                });
+                const entry = {
+                    id: Date.now() + '_' + Math.random().toString(36).slice(2, 6),
+                    time: timeStr,
+                    fileName: fileName || '未命名',
+                    detections: detections,
+                    summary: { total: detections.length, classes: classes }
+                };
+                historyData.unshift(entry);
+                if (historyData.length > 50) historyData = historyData.slice(0, 50);
+                saveHistory();
+            }
+
+            function clearHistory() {
+                if (historyData.length === 0) return;
+                if (!confirm('确定清空所有历史记录吗？')) return;
+                historyData = [];
+                saveHistory();
+                showToast('历史已清空', 1200);
+            }
+
+            function renderHistory() {
+                historyCount.textContent = `(${historyData.length})`;
+                if (historyData.length === 0) {
+                    historyList.innerHTML = `<div class="history-empty"><span>📭</span>暂无历史记录</div>`;
+                    return;
+                }
+                let html = '';
+                historyData.forEach((entry, index) => {
+                    const clsSummary = Object.entries(entry.summary.classes)
+                        .map(([cls, count]) => `<span class="mini-tag">${cls} ×${count}</span>`)
+                        .join('');
+                    const detailRows = entry.detections.map((d, i) => {
+                        const conf = ((d.conf || 0) * 100).toFixed(1);
+                        return `<div class="detail-row">
+                                    <span>#${i+1} ${d.cls || '未知'}</span>
+                                    <span>${conf}%</span>
+                                </div>`;
+                    }).join('');
+                    html += `
+                        <div class="history-item" data-index="${index}">
+                            <div class="h-top" onclick="toggleHistoryDetail(this)">
+                                <span class="h-time">🕒 ${entry.time}</span>
+                                <span class="h-file">📎 ${entry.fileName}</span>
+                                <span class="h-count">${entry.summary.total} 个</span>
+                            </div>
+                            <div class="h-tags">${clsSummary}</div>
+                            <div class="h-detail">${detailRows || '<div style="color:rgba(255,255,255,0.2);">无详细数据</div>'}</div>
+                        </div>
+                    `;
+                });
+                historyList.innerHTML = html;
+            }
+
+            window.toggleHistoryDetail = function(el) {
+                const parent = el.closest('.history-item');
+                if (!parent) return;
+                const detail = parent.querySelector('.h-detail');
+                if (detail) detail.classList.toggle('open');
+            };
+
+            // ===== 文件上传 =====
+            fileInput.addEventListener('change', (e) => {
+                const file = e.target.files[0];
+                if (file) handleFile(file);
+            });
+
+            dropZone.addEventListener('dragover', (e) => {
+                e.preventDefault();
+                dropZone.classList.add('dragover');
+            });
+            dropZone.addEventListener('dragleave', () => {
+                dropZone.classList.remove('dragover');
+            });
+            dropZone.addEventListener('drop', (e) => {
+                e.preventDefault();
+                dropZone.classList.remove('dragover');
+                const file = e.dataTransfer.files[0];
+                if (file && file.type.startsWith('image/')) {
+                    handleFile(file);
+                    const dt = new DataTransfer();
+                    dt.items.add(file);
+                    fileInput.files = dt.files;
+                } else {
+                    showToast('请拖拽图片文件', 1800);
+                }
+            });
+
+            function handleFile(file) {
+                currentFile = file;
+                fileName.textContent = `📎 ${file.name} (${(file.size / 1024).toFixed(1)} KB)`;
+                imageInfo.textContent = file.name;
+                imageSizeInfo.textContent = `${(file.size / 1024).toFixed(0)} KB`;
+
+                const url = URL.createObjectURL(file);
+                currentImageUrl = url;
+                const img = new Image();
+                img.onload = () => {
+                    canvas.width = img.width;
+                    canvas.height = img.height;
+                    ctx.clearRect(0, 0, canvas.width, canvas.height);
+                    ctx.drawImage(img, 0, 0);
+                    placeholder.style.display = 'none';
+                    clearResults();
+                    showToast('✅ 图片已加载', 1000);
+                };
+                img.onerror = () => {
+                    showToast('❌ 图片加载失败', 2000);
+                };
+                img.src = url;
+            }
+
+            // ===== 清除结果 =====
+            function clearResults() {
+                lastResult = null;
+                resultList.innerHTML = `<div class="empty-state"><span>🔍</span>暂无检测结果</div>`;
+                statsBar.style.display = 'none';
+                tagCloud.innerHTML = '';
+                if (currentImageUrl) {
+                    const img = new Image();
+                    img.onload = () => {
+                        ctx.clearRect(0, 0, canvas.width, canvas.height);
+                        ctx.drawImage(img, 0, 0);
+                    };
+                    img.src = currentImageUrl;
+                }
+            }
+
+            window.clearAll = function() {
+                fileInput.value = '';
+                currentFile = null;
+                fileName.textContent = '';
+                imageInfo.textContent = '未加载图片';
+                imageSizeInfo.textContent = '';
+                placeholder.style.display = 'flex';
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+                clearResults();
+                showToast('已清空', 1000);
+            };
+
+            // ===== 下载截图 =====
+            window.downloadResult = function() {
+                if (!currentImageUrl && !lastResult) {
+                    showToast('请先识别图片', 1600);
+                    return;
+                }
+                const link = document.createElement('a');
+                link.download = `detection_${Date.now()}.png`;
+                link.href = canvas.toDataURL('image/png');
+                link.click();
+                showToast('💾 截图已下载', 1500);
+            };
+
+            // ===== 核心识别 =====
+            window.runDetect = async function() {
+                if (!currentFile) {
+                    showToast('请先选择一张图片', 1600);
+                    return;
+                }
+
+                const apiUrl = document.getElementById('api-url').value.trim();
+                if (!apiUrl) {
+                    showToast('请输入 API 地址', 1600);
+                    return;
+                }
+
+                setLoading(true);
+
+                try {
+                    const formData = new FormData();
+                    formData.append('file', currentFile);
+
+                    const resp = await fetch(apiUrl, {
+                        method: 'POST',
+                        body: formData,
+                    });
+
+                    if (!resp.ok) {
+                        let errMsg = `请求失败 (${resp.status})`;
+                        try {
+                            const errJson = await resp.json();
+                            errMsg = errJson.detail || errMsg;
+                        } catch (_) { /* ignore */ }
+                        throw new Error(errMsg);
+                    }
+
+                    const data = await resp.json();
+                    lastResult = data;
+                    const detections = data.detections || [];
+
+                    drawDetections(detections);
+                    renderStats(data);
+                    renderTagCloud(detections);
+                    renderList(detections);
+
+                    const fileNameStr = currentFile ? currentFile.name : '未知文件';
+                    addHistoryEntry(fileNameStr, detections);
+
+                    showToast(`✅ 检测完成，共 ${data.count || 0} 个包裹`, 2000);
+
+                } catch (err) {
+                    showToast(`❌ ${err.message || '识别出错，请检查 API 服务'}`);
+                    console.error(err);
+                } finally {
+                    setLoading(false);
+                }
+            };
+
+            // ===== 绘制检测框 =====
+            function drawDetections(detections) {
+                if (!currentImageUrl) return;
+                const img = new Image();
+                img.onload = () => {
+                    canvas.width = img.width;
+                    canvas.height = img.height;
+                    ctx.clearRect(0, 0, canvas.width, canvas.height);
+                    ctx.drawImage(img, 0, 0);
+
+                    if (!detections || detections.length === 0) return;
+
+                    ctx.lineWidth = 2.5;
+                    ctx.font = 'bold 14px -apple-system, sans-serif';
+                    ctx.textBaseline = 'top';
+
+                    detections.forEach((det) => {
+                        const [x1, y1, x2, y2] = det.box;
+                        const label = det.cls || '未知';
+                        const conf = det.conf || 0;
+                        const color = getCategoryColor(label);
+
+                        ctx.strokeStyle = color;
+                        ctx.shadowColor = color + '66';
+                        ctx.shadowBlur = 10;
+                        ctx.strokeRect(x1, y1, x2 - x1, y2 - y1);
+                        ctx.shadowBlur = 0;
+
+                        const text = `${label} ${(conf * 100).toFixed(1)}%`;
+                        ctx.font = 'bold 13px -apple-system, sans-serif';
+                        const metrics = ctx.measureText(text);
+                        const tw = metrics.width + 12;
+                        const th = 26;
+                        const ty = Math.max(2, y1 - th + 2);
+
+                        ctx.fillStyle = color + 'cc';
+                        ctx.beginPath();
+                        ctx.roundRect(x1, ty, tw, th, 6);
+                        ctx.fill();
+
+                        ctx.fillStyle = '#fff';
+                        ctx.textBaseline = 'top';
+                        ctx.font = 'bold 12px -apple-system, sans-serif';
+                        ctx.fillText(text, x1 + 6, ty + 5);
+                    });
+                };
+                img.src = currentImageUrl;
+            }
+
+            // roundRect polyfill
+            if (!CanvasRenderingContext2D.prototype.roundRect) {
+                CanvasRenderingContext2D.prototype.roundRect = function(x, y, w, h, r) {
+                    if (r > w / 2) r = w / 2;
+                    if (r > h / 2) r = h / 2;
+                    this.moveTo(x + r, y);
+                    this.arcTo(x + w, y, x + w, y + h, r);
+                    this.arcTo(x + w, y + h, x, y + h, r);
+                    this.arcTo(x, y + h, x, y, r);
+                    this.arcTo(x, y, x + w, y, r);
+                    return this;
+                };
+            }
+
+            // ===== 统计 & 标签云 =====
+            function renderStats(data) {
+                const dets = data.detections || [];
+                const count = dets.length;
+                if (count === 0) { statsBar.style.display = 'none'; return; }
+                statsBar.style.display = 'flex';
+                totalCount.textContent = count;
+
+                const clsMap = {};
+                dets.forEach(d => {
+                    const cls = d.cls || '未知';
+                    clsMap[cls] = (clsMap[cls] || 0) + 1;
+                });
+                const classKeys = Object.keys(clsMap);
+                classCount.textContent = classKeys.length;
+
+                let maxCls = '—',
+                    maxVal = 0;
+                for (const [k, v] of Object.entries(clsMap)) {
+                    if (v > maxVal) { maxVal = v;
+                        maxCls = k; }
+                }
+                topClassLabel.textContent = maxCls !== '—' ? `${maxCls} (${maxVal})` : '—';
+            }
+
+            function renderTagCloud(detections) {
+                if (!detections || detections.length === 0) {
+                    tagCloud.innerHTML = '';
+                    return;
+                }
+                const clsMap = {};
+                detections.forEach(d => {
+                    const cls = d.cls || '未知';
+                    clsMap[cls] = (clsMap[cls] || 0) + 1;
+                });
+                let html = '';
+                const colors = ['tag-primary', 'tag-success', 'tag-warning', 'tag-danger'];
+                let idx = 0;
+                for (const [cls, count] of Object.entries(clsMap)) {
+                    const colorClass = colors[idx % colors.length];
+                    html += `<span class="tag ${colorClass}">${cls} <span class="count">${count}</span></span>`;
+                    idx++;
+                }
+                tagCloud.innerHTML = html;
+            }
+
+            function renderList(detections) {
+                if (!detections || detections.length === 0) {
+                    resultList.innerHTML = `<div class="empty-state"><span>📭</span>未检测到包裹</div>`;
+                    return;
+                }
+                let html = '';
+                detections.forEach((det, i) => {
+                    const cls = det.cls || '未知';
+                    const conf = det.conf || 0;
+                    const confClass = getConfidenceClass(conf);
+                    const color = getCategoryColor(cls);
+                    const pct = (conf * 100).toFixed(1);
+                    html += `
+                        <div class="row">
+                            <div class="left">
+                                <span class="dot-indicator" style="background:${color};"></span>
+                                <span class="cls-name">#${i + 1} ${cls}</span>
+                            </div>
+                            <span class="conf ${confClass}">${pct}%</span>
+                        </div>
+                    `;
+                });
+                resultList.innerHTML = html;
+            }
+
+            // ===== 快捷键 =====
+            document.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
+                    e.preventDefault();
+                    window.runDetect();
+                }
+            });
+
+            // ===== 初始化 =====
+            loadHistory();
+            console.log('📦 校园快递包裹分类识别 · 横向版 已加载');
+            console.log('💡 Ctrl+Enter 快速识别');
+
+            // 暴露给全局
+            window.clearHistory = clearHistory;
+            window.toggleHistoryDetail = toggleHistoryDetail;
+
+        })();
+    </script>
+
 </body>
 </html>
