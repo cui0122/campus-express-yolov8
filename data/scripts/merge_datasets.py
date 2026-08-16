@@ -13,17 +13,28 @@ import shutil
 
 # ---------------- 配置区，按你的实际情况修改 ----------------
 
-FINAL_CLASSES = ["纸箱", "文件袋", "塑料袋", "泡沫箱"]
+FINAL_CLASSES = ["纸箱", "塑料袋", "泡沫箱"]
 
 # 公开数据集类别名 -> 项目类别名（None 表示丢弃）
+# 注意：纸箱类样本量往往远超塑料袋/泡沫箱，容易造成类别不平衡（建议控制在10:1以内），
+# 可以配合 data/scripts/downsample_majority_class.py（如果启用）对纸箱做随机下采样
 PUBLIC_CLASS_MAP = {
     "box": "纸箱",
     "boxes": "纸箱",
     "cardboard": "纸箱",
+    "cardboard box": "纸箱",
+    "corrugated carton": "纸箱",
     "package": "纸箱",
     "parcel": "纸箱",
-    "good-parcel": "纸箱",
-    "envelope": "文件袋",
+    "plastic bag": "塑料袋",
+    "single-use carrier bag": "塑料袋",
+    "polypropylene bag": "塑料袋",
+    "courier bag": "塑料袋",
+    "poly mailer": "塑料袋",
+    "foam food container": "泡沫箱",
+    "styrofoam": "泡沫箱",
+    "styrofam piece":"泡沫箱",
+    "foam box": "泡沫箱",
     "label": None,
     "person": None,
 }
@@ -45,7 +56,7 @@ def load_classes(dataset_dir):
     classes_path = os.path.join(dataset_dir, "classes.txt")
     if not os.path.exists(classes_path):
         raise SystemExit(f"未找到 {classes_path}，请确认该数据集已是 YOLO 格式并带 classes.txt")
-    with open(classes_path, encoding="utf-8") as f:
+    with open(classes_path) as f:
         return [line.strip() for line in f if line.strip()]
 
 
@@ -67,7 +78,7 @@ def remap_one_dataset(dataset_dir, class_map, final_classes, out_dir, prefix):
         stem = os.path.splitext(lbl_file)[0]
 
         new_lines = []
-        with open(os.path.join(lbl_dir, lbl_file), encoding="utf-8") as f:
+        with open(os.path.join(lbl_dir, lbl_file)) as f:
             for line in f:
                 parts = line.strip().split()
                 if len(parts) != 5:
@@ -98,7 +109,7 @@ def remap_one_dataset(dataset_dir, class_map, final_classes, out_dir, prefix):
 
         new_stem = f"{prefix}_{stem}"
         shutil.copy(img_path, os.path.join(out_img_dir, new_stem + os.path.splitext(img_path)[1]))
-        with open(os.path.join(out_lbl_dir, new_stem + ".txt"), "w", encoding="utf-8") as fo:
+        with open(os.path.join(out_lbl_dir, new_stem + ".txt"), "w") as fo:
             fo.write("\n".join(new_lines))
         kept += 1
 
@@ -119,7 +130,7 @@ def main():
     else:
         print(f"[跳过] 未找到校园自采数据目录: {CAMPUS_DIR}")
 
-    with open(os.path.join(OUT_DIR, "classes.txt"), "w", encoding="utf-8") as f:
+    with open(os.path.join(OUT_DIR, "classes.txt"), "w") as f:
         f.write("\n".join(FINAL_CLASSES))
 
     print(f"[OK] 合并完成 -> {OUT_DIR}（下一步跑 clean_dataset.py）")
