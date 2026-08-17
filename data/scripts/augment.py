@@ -1,19 +1,28 @@
 """
-离线数据增强：只对 train 集做增强（val/test 保持原始，避免评估失真）。
-重点针对小尺寸包裹目标：随机缩放贴近远景、HSV扰动、亮度/对比度变化、水平翻转。
-YOLOv8 训练时自带在线 Mosaic/HSV 等增强，这里的离线增强是作为"数据量不够时"的补充，
-如果你的数据集已经有 2000+ 张，可以跳过这一步，只依赖 YOLOv8 内置在线增强。
+离线数据增强：只对 train 集做增强（支持包含中文/非ASCII字符的文件路径，并加入 tqdm 进度条）。
 """
 import os
 import random
 
 import albumentations as A
 import cv2
+import numpy as np
 from tqdm import tqdm
 
 IMG_DIR = "data/dataset/images/train"
 LBL_DIR = "data/dataset/labels/train"
-AUG_PER_IMAGE = 2  # 每张原图生成几张增强图
+AUG_PER_IMAGE = 4  # 每张原图生成几张增强图
+
+# ----------------- 兼容 Windows 中文/非 ASCII 路径读写 -----------------
+def cv_imread(filepath):
+    """解决 OpenCV 在 Windows 上无法读取包含中文/乱码路径图片的问题"""
+    return cv2.imdecode(np.fromfile(filepath, dtype=np.uint8), cv2.IMREAD_COLOR)
+
+def cv_imwrite(filepath, img):
+    """解决 OpenCV 在 Windows 上无法写入包含中文/乱码路径图片的问题"""
+    ext = os.path.splitext(filepath)[1]
+    cv2.imencode(ext, img)[1].tofile(filepath)
+# ----------------------------------------------------------------------
 
 transform = A.Compose(
     [
@@ -32,7 +41,7 @@ def read_yolo_labels(path):
     boxes, labels = [], []
     if not os.path.exists(path):
         return boxes, labels
-    with open(path, encoding="utf-8") as f:
+    with open(path, "r", encoding="utf-8") as f:
         for line in f:
             parts = line.strip().split()
             if len(parts) != 5:
@@ -47,12 +56,12 @@ def main():
     img_files = [f for f in os.listdir(IMG_DIR) if f.lower().endswith((".jpg", ".jpeg", ".png"))]
     print(f"待增强图像数: {len(img_files)}")
 
-    for img_file in tqdm(img_files, desc="数据增强中", unit="张"):
+    for img_file in tqdm(img_files, desc="执行 train 集数据增强"):
         stem, ext = os.path.splitext(img_file)
         img_path = os.path.join(IMG_DIR, img_file)
         lbl_path = os.path.join(LBL_DIR, stem + ".txt")
 
-        image = cv2.imread(img_path)
+        image = cv_imread(img_path)
         if image is None:
             continue
         boxes, labels = read_yolo_labels(lbl_path)
@@ -66,7 +75,7 @@ def main():
                 continue
 
             new_stem = f"{stem}_aug{i}"
-            cv2.imwrite(os.path.join(IMG_DIR, new_stem + ext), augmented["image"])
+            cv_imwrite(os.path.join(IMG_DIR, new_stem + ext), augmented["image"])
 
             lines = [
                 f"{cls} {b[0]:.6f} {b[1]:.6f} {b[2]:.6f} {b[3]:.6f}"
