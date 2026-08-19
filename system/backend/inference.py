@@ -7,7 +7,12 @@ import os
 from PIL import Image
 from ultralytics import YOLO
 
-WEIGHTS_PATH = os.environ.get("MODEL_WEIGHTS", "system/backend/models/best.pt")
+# 默认权重路径改为基于本文件所在目录的绝对路径，
+# 避免因为 uvicorn 启动时的当前工作目录不同而导致找不到文件。
+_THIS_DIR = os.path.dirname(os.path.abspath(__file__))
+WEIGHTS_PATH = os.environ.get(
+    "MODEL_WEIGHTS", os.path.join(_THIS_DIR, "models", "best.pt")
+)
 CONF_THRES = float(os.environ.get("CONF_THRES", 0.35))
 
 _model = None
