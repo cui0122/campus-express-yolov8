@@ -1,12 +1,9 @@
 """
 训练入口，支持两阶段迁移学习：
   阶段1：公开数据集预训练（从 COCO 权重开始）
-  阶段2：校园数据集微调（从阶段1权重开始）
 
 用法：
 python ./training/train.py --stage 1 --config ./training/configs/stage1_public_pretrain.yaml
-python ./training/train.py --stage 2 --config ./training/configs/stage2_campus_finetune.yaml \
-                 --weights ./training/runs/stage1/weights/best.pt
 """
 import argparse
 
@@ -23,7 +20,7 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--stage", type=int, choices=[1, 2], required=True)
     parser.add_argument("--config", required=True)
-    parser.add_argument("--weights", default=None, help="覆盖配置文件里的初始权重路径（阶段2常用）")
+    parser.add_argument("--weights", default=None, help="覆盖配置文件里的初始权重路径")
     args = parser.parse_args()
 
     cfg = load_config(args.config)
