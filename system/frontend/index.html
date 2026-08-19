@@ -234,12 +234,13 @@
         .api-row {
             display: flex;
             align-items: center;
-            gap: 10px;
+            gap: 8px;
             flex-shrink: 0;
             background: rgba(255, 255, 255, 0.04);
             padding: 6px 14px 6px 16px;
             border-radius: 12px;
             border: 1px solid rgba(255, 255, 255, 0.06);
+            flex-wrap: wrap;
         }
 
         .api-row label {
@@ -274,8 +275,34 @@
             width: 6px;
             height: 6px;
             border-radius: 50%;
-            background: #4ade80;
             display: inline-block;
+            background: #888; /* 默认灰色 */
+            transition: background 0.3s;
+        }
+
+        .api-row .api-status .dot.online {
+            background: #4ade80;
+        }
+        .api-row .api-status .dot.offline {
+            background: #ff6b6b;
+        }
+        .api-row .api-status .dot.testing {
+            background: #fbbf24;
+        }
+
+        .btn-test-api {
+            padding: 2px 12px;
+            font-size: 11px;
+            border-radius: 8px;
+            background: rgba(255, 255, 255, 0.06);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            color: rgba(255, 255, 255, 0.6);
+            cursor: pointer;
+            transition: 0.2s;
+            font-family: inherit;
+        }
+        .btn-test-api:hover {
+            background: rgba(255, 255, 255, 0.12);
         }
 
         /* 操作按钮 */
@@ -837,13 +864,14 @@
         <div class="right-panel">
             <div class="panel-title">⚙️ 控制台</div>
 
-            <!-- API -->
+            <!-- API 行（增加测试按钮） -->
             <div class="api-row">
                 <label>🔗 API</label>
                 <input id="api-url" value="http://127.0.0.1:8000/detect" spellcheck="false" />
+                <button class="btn-test-api" id="testApiBtn">测试</button>
                 <div class="api-status">
-                    <span class="dot"></span>
-                    <span id="api-label">就绪</span>
+                    <span class="dot" id="apiDot"></span>
+                    <span id="apiLabel">未测试</span>
                 </div>
             </div>
 
@@ -905,7 +933,7 @@
 
     <script>
         // ============================================================
-        //  粒子系统
+        //  粒子系统（不变）
         // ============================================================
         (function initParticles() {
             const canvas = document.getElementById('particle-canvas');
@@ -942,14 +970,12 @@
                     this.y += this.vy * this.speed;
                     this.phase += 0.008 + Math.random() * 0.004;
 
-                    // 边界反弹 + 随机重置
                     if (this.x < -20 || this.x > w + 20 || this.y < -20 || this.y > h + 20) {
                         this.reset();
                         this.x = Math.random() * w;
                         this.y = Math.random() * h;
                     }
 
-                    // 轻微游走
                     this.vx += (Math.random() - 0.5) * 0.008;
                     this.vy += (Math.random() - 0.5) * 0.008;
                     const maxV = 0.3;
@@ -969,7 +995,6 @@
                     ctx.fillStyle = this.color + Math.floor(opacity * 200).toString(16).padStart(2, '0');
                     ctx.fill();
                     ctx.shadowBlur = 0;
-                    // 光晕
                     ctx.beginPath();
                     ctx.arc(this.x, this.y, glow * 0.7, 0, Math.PI * 2);
                     ctx.fillStyle = gradient;
@@ -983,7 +1008,6 @@
 
             function animate() {
                 ctx.clearRect(0, 0, w, h);
-                // 绘制微弱星云背景
                 const grad = ctx.createRadialGradient(w * 0.5, h * 0.5, 0, w * 0.5, h * 0.5, Math.max(w, h) * 0.8);
                 grad.addColorStop(0, 'rgba(30, 40, 80, 0.15)');
                 grad.addColorStop(0.5, 'rgba(20, 15, 50, 0.10)');
@@ -999,7 +1023,6 @@
             }
             animate();
 
-            // 窗口变化时重置粒子位置
             window.addEventListener('resize', () => {
                 particles.forEach(p => {
                     p.x = Math.random() * w;
@@ -1009,7 +1032,7 @@
         })();
 
         // ============================================================
-        //  主应用逻辑
+        //  主应用逻辑（优化后）
         // ============================================================
         (function main() {
             // DOM 引用
@@ -1034,6 +1057,10 @@
             const historyList = document.getElementById('historyList');
             const historyCount = document.getElementById('historyCount');
             const canvasWrapper = document.getElementById('canvasWrapper');
+
+            // API 状态元素
+            const apiDot = document.getElementById('apiDot');
+            const apiLabel = document.getElementById('apiLabel');
 
             let currentFile = null;
             let currentImageUrl = null;
@@ -1069,6 +1096,59 @@
                     btnLabel.textContent = '🚀 识别';
                 }
             }
+
+            // ===== API 状态管理 =====
+            function setApiStatus(status, label) {
+                // status: 'online', 'offline', 'testing', 'unknown'
+                apiDot.className = 'dot';
+                apiDot.style.background = ''; // 清除残留的内联样式，避免覆盖 class 样式（.dot.online 等）
+                if (status === 'online') {
+                    apiDot.classList.add('online');
+                    apiLabel.textContent = label || '在线';
+                } else if (status === 'offline') {
+                    apiDot.classList.add('offline');
+                    apiLabel.textContent = label || '离线';
+                } else if (status === 'testing') {
+                    apiDot.classList.add('testing');
+                    apiLabel.textContent = label || '测试中…';
+                } else {
+                    // unknown：默认灰色已经由 CSS 的 .dot 基础样式提供，无需再写内联样式
+                    apiLabel.textContent = label || '未测试';
+                }
+            }
+
+            // ===== 测试 API 连通性 =====
+            async function testApiConnection() {
+                const apiUrl = document.getElementById('api-url').value.trim();
+                if (!apiUrl) {
+                    showToast('请输入 API 地址', 1500);
+                    return;
+                }
+                // 从地址中提取 base URL（去掉 /detect 路径）
+                const baseUrl = apiUrl.replace(/\/detect.*$/, ''); 
+                const healthUrl = baseUrl + '/health';
+
+                setApiStatus('testing', '测试中…');
+                try {
+                    const resp = await fetch(healthUrl, { method: 'GET' });
+                    if (resp.ok) {
+                        setApiStatus('online', '在线');
+                        showToast('✅ API 连接成功', 1500);
+                    } else {
+                        setApiStatus('offline', `离线 (${resp.status})`);
+                        showToast(`❌ 健康检查失败 (HTTP ${resp.status})`, 2500);
+                    }
+                } catch (err) {
+                    setApiStatus('offline', '离线');
+                    showToast(`❌ 无法连接到服务: ${err.message}`, 2500);
+                }
+            }
+
+            // 绑定测试按钮
+            document.getElementById('testApiBtn').addEventListener('click', testApiConnection);
+
+            // 初始状态
+            setApiStatus('unknown', '未测试');
 
             function getConfidenceClass(conf) {
                 if (conf >= 0.75) return 'high';
@@ -1215,6 +1295,7 @@
                     ctx.clearRect(0, 0, canvas.width, canvas.height);
                     ctx.drawImage(img, 0, 0);
                     placeholder.style.display = 'none';
+                    // 清除旧结果（不操作画布）
                     clearResults();
                     showToast('✅ 图片已加载', 1000);
                 };
@@ -1224,30 +1305,30 @@
                 img.src = url;
             }
 
-            // ===== 清除结果 =====
+            // ===== 清除结果（只清数据，不动画布） =====
             function clearResults() {
                 lastResult = null;
                 resultList.innerHTML = `<div class="empty-state"><span>🔍</span>暂无检测结果</div>`;
                 statsBar.style.display = 'none';
                 tagCloud.innerHTML = '';
-                if (currentImageUrl) {
-                    const img = new Image();
-                    img.onload = () => {
-                        ctx.clearRect(0, 0, canvas.width, canvas.height);
-                        ctx.drawImage(img, 0, 0);
-                    };
-                    img.src = currentImageUrl;
-                }
             }
 
+            // ===== 清空所有（彻底重置，包括图片） =====
             window.clearAll = function() {
+                // 重置文件输入
                 fileInput.value = '';
                 currentFile = null;
+                if (currentImageUrl) {
+                    URL.revokeObjectURL(currentImageUrl);
+                    currentImageUrl = null;
+                }
                 fileName.textContent = '';
                 imageInfo.textContent = '未加载图片';
                 imageSizeInfo.textContent = '';
-                placeholder.style.display = 'flex';
+                // 清空画布并显示占位符
                 ctx.clearRect(0, 0, canvas.width, canvas.height);
+                placeholder.style.display = 'flex';
+                // 清空结果
                 clearResults();
                 showToast('已清空', 1000);
             };
@@ -1310,10 +1391,14 @@
                     const fileNameStr = currentFile ? currentFile.name : '未知文件';
                     addHistoryEntry(fileNameStr, detections);
 
+                    // 识别成功，更新 API 状态为在线
+                    setApiStatus('online', '在线');
                     showToast(`✅ 检测完成，共 ${data.count || 0} 个包裹`, 2000);
 
                 } catch (err) {
-                    showToast(`❌ ${err.message || '识别出错，请检查 API 服务'}`);
+                    // 识别失败，标记 API 离线（或保持原样，但提示）
+                    setApiStatus('offline', '离线');
+                    showToast(`❌ ${err.message || '识别出错，请检查 API 服务'}`, 3000);
                     console.error(err);
                 } finally {
                     setLoading(false);
@@ -1464,12 +1549,16 @@
 
             // ===== 初始化 =====
             loadHistory();
+            // 初始 API 状态为未测试
+            setApiStatus('unknown', '未测试');
             console.log('📦 校园快递包裹分类识别 · 横向版 已加载');
             console.log('💡 Ctrl+Enter 快速识别');
+            console.log('🔌 点击“测试”按钮检测 API 连通性');
 
-            // 暴露给全局
+            // 暴露全局函数（供 HTML onclick 使用）
             window.clearHistory = clearHistory;
             window.toggleHistoryDetail = toggleHistoryDetail;
+            window.testApiConnection = testApiConnection;
 
         })();
     </script>
