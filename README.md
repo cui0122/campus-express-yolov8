@@ -21,7 +21,7 @@ campus-express-yolov8/
 │   └── public_yolo/                        # prepare_public_dataset.py 输出的指定目录
 ├── training/
 │   ├── configs/
-│   │   └── train_config.yaml               # 训练配置
+│   │   └── stage1_public_pretrain.yaml     # 训练配置
 │   ├── train.py                            # 训练入口
 │   └── eval.py                             # 在测试集上算 P/R/mAP/推理速度，导出报告
 └── system/
@@ -58,7 +58,7 @@ python data/scripts/split_dataset.py
 python data/scripts/augment.py
 
 # 5. 训练（单阶段）
-python training/train.py --config training/configs/train_config.yaml
+python training/train.py --config training/configs/stage1_public_pretrain.yaml
 
 # 6. 评估
 python training/eval.py --weights training/runs/stage1/weights/best.pt --data data/dataset/data.yaml
